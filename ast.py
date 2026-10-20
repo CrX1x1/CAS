@@ -7,7 +7,7 @@ class Node:
         self.val = val
     def __repr__(self):
         if self.val is not None:
-            return "%s(%s)" % (self.op, self.val)
+            return "%s(%s, %s, %s)" % (self.op, self.val, self.left, self.right)
         return "%s(%s, %s)" % (self.op, self.left, self.right)
 def add(l, r): return Node("+", l, r)
 def sub(l, r): return Node("-", l, r)
@@ -67,13 +67,16 @@ class Parser:
         functions = {"sin", "cos", "tan", "log", "ln", "exp", "sqrt"}
         if tok in functions:
             funct_name = tok
-            self.next_token()
+            self.next_token() #yummy
             if self.current_token == "(":
-                self.next_token()
+                self.next_token() #more yummy
                 arg_node = self.expr()
+                print("debug print: function %s with arg %s, current token is %s" % (funct_name, arg_node, self.current_token))
                 if self.current_token == ")":
-                    self.next_token()
+                    self.next_token() #more stuff to eat
                 return Node("Funct", left=arg_node, val=funct_name)
+            else:
+                raise ValueError("Expected '(' after function %s" % funct_name)
         try:
             val = float(tok) if "." in tok else int(tok)#make sure to convert to correct type
             self.next_token()

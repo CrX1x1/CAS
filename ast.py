@@ -37,14 +37,14 @@ class Parser:
         return self.expr()
     def expr(self): # addition and subtraction, lowest precedence
         node = self.term()
-        while self.current_token in "+-":
+        while self.current_token is not None and self.current_token in "+-":
             op = self.current_token
             self.next_token()
             node = Node(op, left=node, right=self.term())
         return node
     def term(self): # multiplication and division, higher precedence
         node = self.factor()
-        while self.current_token in "*/":
+        while self.current_token is not None and self.current_token in "*/":
             op = self.current_token
             self.next_token()
             node = Node(op, left=node, right=self.factor())
@@ -62,6 +62,18 @@ class Parser:
             if self.current_token == ")":
                 self.next_token()
             return node
+
+        # I forgot about function handling bruh
+        functions = {"sin", "cos", "tan", "log", "ln", "exp", "sqrt"}
+        if tok in functions:
+            funct_name = tok
+            self.next_token()
+            if self.current_token == "(":
+                self.next_token()
+                arg_node = self.expr()
+                if self.current_token == ")":
+                    self.next_token()
+                return Node("Funct", left=arg_node, val=funct_name)
         try:
             val = float(tok) if "." in tok else int(tok)#make sure to convert to correct type
             self.next_token()

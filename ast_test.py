@@ -9,15 +9,33 @@ class Node:
         if self.val is not None:
             return "%s(%s, %s, %s)" % (self.op, self.val, self.left, self.right)
         return "%s(%s, %s)" % (self.op, self.left, self.right)
+    def __str__(self):
+        if self.op == "Num":
+            return str(self.val)
+        if self.op == "Var":
+            return str(self.val)
+        if self.op == "neg":
+            return "-%s" % str(self.left)
+        if self.op == "Funct":
+            return "%s(%s)" % (self.val, str(self.left))
+        if self.op in ("+", "-", "*", "/", "^"):
+            return "(%s %s %s)" % (str(self.left), self.op, str(self.right))
 def add(l, r): return Node("+", l, r)
 def sub(l, r): return Node("-", l, r)
 def mul(l, r): return Node("*", l, r)
 def div(l, r): return Node("/", l, r)
+def pow(l, r): return Node("^", l, r)
 def Var(name): return Node("Var", val=name)
 def Num(n): return Node("Num", val=n)
 
-test = mul(div(Num(4), Num(2)), Var("x"))
-print(test)  # Output should be this:  *(/(Num(4), Num(2)), Var(x))
+#test = mul(div(Num(4), Num(2)), Var("x"))
+#print(test)  # Output should be this:  *(/(Num(4), Num(2)), Var(x))
+
+def isalnum(s):
+    for i in list(s):
+        if not (i.isalpha() or i.isdigit()):
+            return False
+    return True
 
 class Parser:
     def __init__(self, tokens):
@@ -43,18 +61,28 @@ class Parser:
             node = Node(op, left=node, right=self.term())
         return node
     def term(self): # multiplication and division, higher precedence
-        node = self.factor()
+        node = self.unary()
         while self.current_token is not None and self.current_token in "*/":
             op = self.current_token
             self.next_token()
-            node = Node(op, left=node, right=self.factor())
+            node = Node(op, left=node, right=self.unary())
         return node
+
+    def unary(self):
+        if self.current_token == "UNARY_MINUS":
+            self.next_token()
+            return Node("neg", left=self.unary())
+        return self.power()
+
+    def power(self):
+        node = self.factor()
+        if self.current_token == "^":
+            self.next_token()
+            node = Node("^", left=node, right=self.unary())
+        return node
+
     def factor(self): # numbers, variables, parentheses, and functions, highest precedence
         tok = self.current_token
-
-        if tok == "UNARY_MINUS":
-            self.next_token()
-            return Node("neg", left=self.factor())
 
         if tok == "(":
             self.next_token()
@@ -71,7 +99,7 @@ class Parser:
             if self.current_token == "(":
                 self.next_token() #more yummy
                 arg_node = self.expr()
-                print("debug print: function %s with arg %s, current token is %s" % (funct_name, arg_node, self.current_token))
+                #print("debug print: function %s with arg %s, current token is %s" % (funct_name, arg_node, self.current_token))
                 if self.current_token == ")":
                     self.next_token() #more stuff to eat
                 return Node("Funct", left=arg_node, val=funct_name)
@@ -80,7 +108,7 @@ class Parser:
         try:
             val = float(tok) if "." in tok else int(tok)#make sure to convert to correct type
             self.next_token()
-            return Node("Num", val=val)
+            return Node("Num", val=float(val))#gah, forgot to turn it into float for evaluation
         except ValueError:
             pass # gotta handle nums and vars later
 
@@ -95,7 +123,7 @@ def is_number(s):
         return False
 
 def tokenize(expr):
-    a = list(expr)
+    a = list(expr.replace(" ", "")) #remove whitespace
     b = ""
     c = []
     prevType = None
@@ -112,7 +140,7 @@ def tokenize(expr):
                 b = ""
             b += i
             prevType = "alpha"
-        elif i in "+-*/": # unary minus needed
+        elif i in "+-*/^": # unary minus needed
             if b:
                 c.append(b)
                 b = ""
@@ -124,6 +152,8 @@ def tokenize(expr):
             prevType = "operator"
         else:
             prevType = None
+            if i == ")":
+                prevType = "something"
             if  b:
                 c.append(b)
                 b = ""
@@ -142,8 +172,8 @@ def tokenize(expr):
             next_tok = c[i + 1]
             numToWord = tok.replace(".", "", 1).isdigit() and next_tok.isalpha()
             numToParens = tok.replace(".", "", 1).isdigit() and next_tok == "("
-            parensToNext = tok == ")" and tok not in functions and (next_tok.isalnum() or next_tok == "(")
-            varToNext = tok.isalpha() and tok not in functions and (next_tok.isalnum() or next_tok == "(")
+            parensToNext = tok == ")" and tok not in functions and (isalnum(next_tok) or next_tok == "(")
+            varToNext = tok.isalpha() and tok not in functions and (isalnum(next_tok) or next_tok == "(")
 
             if numToWord or numToParens or parensToNext or varToNext:
                 tokens.append("*")

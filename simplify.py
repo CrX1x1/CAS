@@ -152,6 +152,8 @@ def term_key(node):
         left = term_key(node.left)
         right = term_key(node.right)
         return "*".join(sorted([left, right]))
+    if node.op == "^":
+        return term_key(node.left) + "^" + term_key(node.right)
     if node.op == "Funct":
         return node.val + "(" + term_key(node.left) + ")"
     return str(node) #just in case

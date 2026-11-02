@@ -4,8 +4,10 @@ A Computer Algebra System design to run in Micropython with exact fractional ari
 
 ## Features
 - **Exact Fraction Engine (`Frac()`): **Support for rational arithmetic, reduction, and decimal/string parsing
-- **AST Parser & Simplifier: **Parses expressions with operator precedence, implicit multiplication, and like-term combination in mind
+- **Multivariable AST Parser & Simplifier: **Parses expressions with operator precedence, multivariable expansion(`ɑ`, `b`, `c`), implicit multiplication, and like-term combination in mind
 - **Exact Polynomial Solver (`solve_poly()`): **Solves polynomial roots with exact fractions
+- **Radicals and Surd(`Surd()/sqrt()`): **Exact radical simplification and coefficient extraction
+- **Exact Polynomial Solver (`solve_poly()`): **Solves for polynomial roots using exact fraction arithmetic
 
 ## Instructions for use
 1. make sure you have Python 3.x or a microcontroller flashed with MicroPython ready

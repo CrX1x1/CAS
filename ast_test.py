@@ -25,8 +25,10 @@ class Frac:
                 numerator = int(text)
         elif isinstance(numerator, float):
             return self.__init__(str(numerator), denominator)
-
-        numerator, denominator = int(numerator), int(denominator)
+        try:
+            numerator, denominator = int(numerator), int(denominator)
+        except ValueError:
+            raise ValueError("only ints, strs, floats and Frac are supported, not %s" % type(numerator).__name__)
         if denominator == 0:
             raise ZeroDivisionError("fraction denominator is zero")
         if denominator < 0:
@@ -42,22 +44,50 @@ class Frac:
         return a or 1
 
     def _coerce(self, other):
-        return other if isinstance(other, Frac) else Frac(other)
+        if isinstance(other, Frac):
+            return other
+        if isinstance(other, int):
+            return Frac(other)
+        if isinstance(other, float):
+            return Frac(str(other))
+        if isinstance(other, Surd):
+            return Frac(int(other))
+        return NotImplemented
 
     def __add__(self, other):
+        if isinstance(other, Surd):
+            return other.__radd__(self) # defer
+        c = self._coerce(other)
+        if c is NotImplemented:
+            return NotImplemented
         other = self._coerce(other)
         return Frac(self.numerator * other.denominator + other.numerator * self.denominator,
                 self.denominator * other.denominator)
 
     def __sub__(self, other):
-        return self + (-self._coerce(other))
+        if isinstance(other, Surd):
+            return other.__rsub__(self) # defer
+        other = self._coerce(other)
+        if other is NotImplemented:
+            return NotImplemented
+        return self + (-other)
 
     def __mul__(self, other):
+        if isinstance(other, Surd):
+            return other.__rmul__(self) # defer
         other = self._coerce(other)
+        if other is NotImplemented:
+            return NotImplemented
         return Frac(self.numerator * other.numerator, self.denominator * other.denominator)
 
     def __truediv__(self, other):
+        if isinstance(other, Surd):
+            c = other.coeff
+            r = other.radicand
+            return Surd(self / (c*r), r)
         other = self._coerce(other)
+        if other is NotImplemented:
+            return NotImplemented
         return Frac(self.numerator * other.denominator, self.denominator * other.numerator)
 
     def __neg__(self):
@@ -100,7 +130,116 @@ class Frac:
     def __repr__(self):
         return "%d/%d" % (self.numerator, self.denominator)
     
+class Surd:
+    __slots__ = ("coeff", "radicand")
+    def __init__(self, coeff=1, radicand=1): # debugged this with AI, it was a pain in the ass
+        self.coeff = coeff if isinstance(coeff, Frac) else Frac(coeff)
+        
+        if not isinstance(radicand, Frac):
+            radicand = Frac(radicand)
+            
+        if radicand < 0:
+            raise ValueError("Why don't you go submit a PR for complex numbers if you really need it?")
+        if radicand == 0:
+            self.coeff = Frac(0)
+            self.radicand = Frac(1)
+            return
 
+        a = int(radicand.numerator)
+        b = int(radicand.denominator)
+        
+        r = a * b
+        self.coeff /= Frac(b)
+        factor = 1
+        d = 2
+        while d * d <= r:
+            while r % (d * d) == 0:
+                factor *= d
+                r //= (d * d)
+            d += 1
+        self.coeff *= Frac(factor)
+        self.radicand = Frac(r)
+    def __str__(self): #debugged this with AI, again
+        if self.coeff == Frac(0):
+            return "0"
+        if self.radicand == Frac(1):
+            return str(self.coeff)
+        if self.coeff == Frac(1):
+            c = ""
+        elif self.coeff == Frac(-1):
+            c = "-"
+        else:
+            c = str(self.coeff)
+        return "%ssqrt(%s)" % (c, self.radicand)
+    def __int__(self):
+        if self.radicand == Frac(1):
+            return int(self.coeff)
+        raise ValueError("Cannot convert non-integer Surd to int")
+    def __repr__(self):
+        return str(self)
+    def __mul__(self, other):
+        if isinstance(other, Frac):
+            return Surd(self.coeff * other, self.radicand)
+        if isinstance(other, Surd):
+            # (a * sqrt(b)) * (c * sqrt(d)) = (a * c) * sqrt(b * d
+            return Surd(self.coeff * other.coeff, self.radicand * other.radicand)
+        return NotImplemented
+    def __rmul__(self, other):
+            return self*other
+    def __add__(self, other): # took way too long
+        if isinstance(other, (int, float)):
+            other = Frac(other)
+
+        if isinstance(other, Frac):
+            if other == Frac(0):
+                return self
+            # Frac is treated as Surd(coeff=other, radicand=1)
+            if self.radicand == Frac(1):
+                return Surd(self.coeff + other, 1)
+                # different radicands
+            return NotImplemented
+        if isinstance(other, Surd):
+            if self.radicand == other.radicand:
+                return Surd(self.coeff + other.coeff, self.radicand)
+            return NotImplemented
+
+        return NotImplemented
+
+    def __radd__(self, other):
+        return self.__add__(other)
+    def __sub__(self, other):
+        if isinstance(other, (int, Frac)):
+            other_surd = Surd(other, Frac(1))
+        elif isinstance(other, Surd):
+            other_surd = other
+        else:
+            return NotImplemented
+        if self.radicand == other_surd.radicand:
+            return Surd(self.coeff - other_surd.coeff, self.radicand)
+        return NotImplemented
+    def __rsub__(self, other):
+        # other - self
+        if isinstance(other, (int, float, Frac)):
+            other = Frac(other)
+            if other == Frac(0):
+                return Surd(-self.coeff, self.radicand)   # 0 - √a = -√a
+            if self.radicand == Frac(1):
+                return Surd(other - self.coeff, 1)
+            return NotImplemented
+        return NotImplemented
+    def __eq__(self, other):
+        if isinstance(other, Surd):
+            return self.coeff == other.coeff and self.radicand == other.radicand
+        return NotImplemented
+    def __ne__(self, other):
+        return not self == other
+    def __truediv__(self, other):
+        if isinstance(other, Frac):
+            return Surd(self.coeff / other, self.radicand)
+        if isinstance(other, Surd):
+            # (a * sqrt(b)) / (c * sqrt(d)) = (a / c) * sqrt(b / d)
+            return Surd(self.coeff / other.coeff, self.radicand / other.radicand)
+        return NotImplemented
 
 class Node:
     __slots__ = ("op", "left", "right", "val")
@@ -124,6 +263,8 @@ class Node:
         }
         if self.op in ("Num", "Var"):
             return str(self.val)
+        if self.op == "Const":
+            return str(self.val)
         if self.op == "neg":
             return "-%s" % str(self.left)
         if self.op == "Funct":
@@ -139,6 +280,16 @@ class Node:
             if self.right and self.right.op in precedence and precedence[self.right.op] < precedence[self.op]:
                 right_str = "(%s)" % right_str
             return "%s^%s" % (left_str, right_str)
+        if self.op == "*":
+            left_str = str(self.left)
+            right_str = str(self.right)
+            if self.left.op in ("+", "-"):
+                left_str = "(%s)" % left_str
+            if self.right.op in ("+", "-"):
+                right_str = "(%s)" % right_str
+            if self.left and self.left.op == "Num" and self.right and self.right.op in ("Var", "^"):
+                return "%s%s" % (left_str, right_str)
+            return "%s*%s" % (left_str, right_str)
         if self.op in precedence:
             left_str = str(self.left)
             right_str = str(self.right)
@@ -146,7 +297,9 @@ class Node:
                 left_str = "(%s)" % left_str
             if self.right and self.right.op in precedence and precedence[self.right.op] < precedence[self.op]:
                 right_str = "(%s)" % right_str
-            return "%s %s %s" % (left_str, self.op, right_str)
+            s = "%s %s %s" % (left_str, self.op, right_str)
+            s = s.replace("+ -", "- ")
+            return s
         return "(%s %s %s)" % (str(self.left), self.op, str(self.right))
 def add(l, r): return Node("+", l, r)
 def sub(l, r): return Node("-", l, r)
@@ -161,6 +314,8 @@ def fraction_value(value):
     """Convert parser number values to Frac without introducing float error."""
     if isinstance(value, Frac):
         return value
+    if isinstance(value, Surd):
+        return None #not rationals
     if isinstance(value, float):
         return Frac(str(value))
     return Frac(value)
@@ -265,7 +420,7 @@ class Parser:
             return node
 
         # I forgot about function handling bruh
-        functions = {"sin", "cos", "tan", "log", "ln", "exp", "sqrt"}
+        functions = {"sin", "cos", "tan","csc", "sec", "cot", "log", "ln", "exp", "sqrt"}
         if tok in functions:
             funct_name = tok
             self.next_token() #yummy
@@ -275,9 +430,26 @@ class Parser:
                 #print("debug print: function %s with arg %s, current token is %s" % (funct_name, arg_node, self.current_token))
                 if self.current_token == ")":
                     self.next_token() #more stuff to eat
+                if funct_name == "sqrt":
+                    arg_val = numeric_fraction(arg_node)
+                    if arg_val is not None:
+                        try:
+                            radicand = Frac(arg_val)
+                            return Node("Num", val=Surd(1, radicand))
+                        except ValueError:
+                            pass
+                arg_val = numeric_fraction(arg_node)
+                if arg_val is not None:
+                    pass
                 return Node("Funct", left=arg_node, val=funct_name)
             else:
                 raise ValueError("Expected '(' after function %s" % funct_name)
+        if tok == "pi":
+            self.next_token()
+            return Node("Const", val="pi")
+        if tok == "e":
+            self.next_token()
+            return Node("Const", val="e")
         try:
             val = float(tok) if "." in tok else int(tok)#make sure to convert to correct type
             self.next_token()
@@ -335,7 +507,7 @@ def tokenize(expr):
     if b:
         c.append(b)
 
-    functions = {"sin", "cos", "tan", "log", "ln", "exp", "sqrt"}
+    functions = {"sin", "cos", "tan","csc", "sec", "cot", "log", "ln", "exp", "sqrt"}
     tokens = []
 
     for i, tok in enumerate(c):

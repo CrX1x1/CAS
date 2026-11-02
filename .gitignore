@@ -1,4 +1,6 @@
+*.pyc
+dist/
+build/
 .vscode/
 state/
 __pycache__/
-*.py[cod]
